@@ -1,0 +1,106 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tasks Test</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 20px; }
+      .error { background:#fee; color:#900; padding:8px; border:1px solid #f99; }
+      .ok { background:#eef; color:#003; padding:8px; border:1px solid #99f; }
+      .card { border:1px solid #ddd; padding:12px; margin:8px 0; }
+    </style>
+  </head>
+  <body>
+    <h1>Tasks Backend Test UI</h1>
+    <div id="status"></div>
+    <div>
+      <button id="load">Load Tasks</button>
+      <div id="list"></div>
+    </div>
+    <hr />
+    <div id="detail"></div>
+
+    <script>
+      const base = ''
+      const status = document.getElementById('status')
+      const list = document.getElementById('list')
+      const detail = document.getElementById('detail')
+
+      function showError(msg) {
+        status.innerHTML = `<div class="error">${msg}</div>`
+      }
+      function showOk(msg) {
+        status.innerHTML = `<div class="ok">${msg}</div>`
+      }
+
+      async function loadTasks() {
+        status.textContent = 'Loading tasks...'
+        try {
+          const res = await fetch(base + '/tasks')
+          if (!res.ok) throw new Error('Failed to load tasks')
+          const data = await res.json()
+          showOk('Loaded tasks')
+          list.innerHTML = data.map(t => `<div class="card"><b>${t.title}</b><br/>${t.description}<br/><button onclick="loadTask(${t.id})">Open</button></div>`).join('')
+        } catch (e) {
+          showError(e.message)
+        }
+      }
+
+      async function loadTask(id) {
+        status.textContent = 'Loading task...'
+        try {
+          const res = await fetch(base + '/tasks/' + id)
+          if (!res.ok) throw new Error('Task not found')
+          const t = await res.json()
+          showOk('Loaded task ' + id)
+          detail.innerHTML = `
+            <div class="card">
+              <h2>${t.title}</h2>
+              <p>${t.description}</p>
+              <p>Submissions: ${t.submissions_count} / ${t.max_submissions}</p>
+              <form onsubmit="submitTask(event, ${t.id})">
+                <input name="name" placeholder="Name" required />
+                <input name="email" type="email" placeholder="Email" required />
+                <input name="message" placeholder="Message" required />
+                <button type="submit">Submit</button>
+              </form>
+            </div>
+          `
+        } catch (e) {
+          showError(e.message)
+        }
+      }
+
+      async function submitTask(ev, id) {
+        ev.preventDefault()
+        status.textContent = 'Submitting...'
+        const form = ev.target
+        const payload = {
+          name: form.name.value,
+          email: form.email.value,
+          message: form.message.value
+        }
+        try {
+          const res = await fetch(base + '/tasks/' + id + '/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          })
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}))
+            throw new Error(err.error || 'Submission failed')
+          }
+          const data = await res.json()
+          showOk('Submitted. Count: ' + data.submissions_count)
+          loadTask(id)
+        } catch (e) {
+          showError(e.message)
+        }
+      }
+
+      document.getElementById('load').addEventListener('click', loadTasks)
+      loadTasks()
+    </script>
+  </body>
+</html>
